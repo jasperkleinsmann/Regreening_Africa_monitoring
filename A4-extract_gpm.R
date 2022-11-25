@@ -4,7 +4,7 @@ library(sf)
 library(lubridate)
 library(data.table)
 
-country <- 'Mali'
+country <- 'Rwanda'
 
 gpm <- rast(paste0('output/gee/gpm/', country, '_GPM_stack.tif'))
 plots <- st_read(dsn=paste0('output/plot_data/', country, '/', country, '_plot_centroid.GeoJSON'))
