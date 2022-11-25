@@ -105,11 +105,6 @@ for (i in 1:length(countries)){
                                                         l8_ts$plot_ID[l8_ts$country==countries[[i]]])
 }
 
-l8_ts %>% 
-  group_by(country) %>% 
-  summarise(latest_obs=mean(ndvi, na.rm = T))
-
-
 # Write final plots df
 fwrite(l8_ts, 'output/plot_data/all_countries/Countries_l8_ts.csv')
 

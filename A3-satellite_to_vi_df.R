@@ -10,27 +10,29 @@ library(BBmisc)
 
 countries <- list('Ethiopia','Ghana','Kenya','Mali','Niger','Rwanda','Senegal')
 
+
 ##### Import satellite data and merge into single df
-refl_l8 <- fread(paste0('output/gee/', countries[[1]], '_refl_l8_pol.csv'))  
-refl_l8 <- refl_l8[,c('date', 'SR_B4', 'SR_B5', 'SR_B6','QA_PIXEL','plotID')]
+refl_l8 <- fread(paste0('output/gee/', countries[[1]], '_l8_ts.csv'))  
+refl_l8 <- refl_l8[,c('plotID','yearmon', 'date', 'ndvi', 'prcp_month','county')]
 refl_l8$country <- countries[[1]]
 
 for (i in 2:length(countries)){
-  print(countries[[i]])
-  cntr_refl <- fread(paste0('output/gee/', countries[[i]], '_refl_l8_pol.csv'))  
-  cntr_refl <- cntr_refl[,c('date', 'SR_B4', 'SR_B5', 'SR_B6','QA_PIXEL','plotID')]
-  cntr_ts$country <- countries[[i]]
-  refl_l8 <- rbind(refl_l8, cntr_refl)
+  print(i)
+  cntr_refl <- fread(paste0('output/gee/', countries[[i]], '_l8_ts.csv'))  
+  cntr_refl <- cntr_refl[,c('plotID','yearmon', 'date', 'ndvi', 'prcp_month','county')]
+  cntr_refl$country <- countries[[i]]
+  refl_l8 <- rbind(l8_ts, cntr_refl)
 }
 # Create new column that is truly plot unique
-refl_l8$plot_ID <- refl_l8$plotID
+l8_ts$plot_ID <- l8_ts$plotID
 for (i in 1:length(countries)){
-  refl_l8$plotID[refl_l8$country==countries[[i]]] <- paste0(substr(refl_l8$country[refl_l8$country==countries[[i]]][1], 1,1), 
-                                                            refl_l8$plot_ID[refl_l8$country==countries[[i]]])
+  l8_ts$plotID[l8_ts$country==countries[[i]]] <- paste0(substr(l8_ts$country[l8_ts$country==countries[[i]]][1], 1,1), 
+                                                        l8_ts$plot_ID[l8_ts$country==countries[[i]]])
 }
 
+
 # Import the reflectance df
-refl_l8 <- data.table(read_csv(paste0('output/gee/', country, '_refl_l8_pol.csv')))
+refl_l8 <- fread(paste0('output/gee/', country, '_refl_l8_pol.csv'))
 
 #### L8
 refl_l8 <- refl_l8[,c('date', 'SR_B4', 'SR_B5', 'SR_B6','QA_PIXEL','plotID')]
