@@ -1,28 +1,22 @@
 
+library(data.table)
+library(sf)
+library(tidyverse)
+
 #### Import
-country <- 'Senegal'
-
 # Plot data
-gpm_month <- data.table(read_csv(paste0('output/time_series/gpm/', country, '_gpm_monthly.csv')))
-refl_l8 <- data.table(read_csv(paste0('output/time_series/', country, '_aggr_vi_l8.csv')))
-
-####### Add information gpm
-gpm_month <- merge(gpm_month, plots[,c('plotID', 'county')], 
-                   by='plotID')
-gpm_month <- gpm_month[,-c('geometry')]
+gpm_month <- fread('output/time_series/gpm/Countries_gpm_monthly.csv')
+refl_l8 <- fread('output/time_series/Countries_aggr_l8.csv')
+plots <- st_read(dsn='output/plot_data/all_countries/Countries_plots_final.GeoJSON')
+plots <- data.table(plots)
+names(plots)[names(plots) == 'Plot_id'] <- 'plot_ID'
 
 # clean and merge refl datasets
-l8_ts <- merge(refl_l8, gpm_month[,c('plotID', 'yearmon','prcp_month')],
-               by=c('plotID', 'yearmon'), all.y=T)
-l8_ts <- l8_ts[,-c('geometry')]
-l8_ts <- l8_ts[order(l8_ts$yearmon),]
+l8_ts <- merge(refl_l8, gpm_month[,c('plotID', 'yearmon','prcp_month','plot_ID','country')],
+               by=c('plotID', 'yearmon', 'plot_ID','country'), all.y=T)
+
+l8_ts <- merge(l8_ts, plots[,c('plotID', 'county','region')], by=c('plotID'), all.y=T)
 
 # Write cleaned L8 and S1 ts
-fwrite(l8_ts, paste0('output/time_series/', country, '_l8_ts.csv'))
-
-
-
-
-
-
+fwrite(l8_ts, 'output/time_series/Countries_l8_ts.csv')
 

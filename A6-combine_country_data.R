@@ -38,6 +38,7 @@ admin_list <- lapply(admin_path, st_read)
 # Make the admin column names consistent 
 admin_list[[6]] <- admin_list[[6]][!names(admin_list[[6]]) %in% c("ADM0_FR","ADM1_FR")]
 admin_list[[5]]$ADM0 <- 'Niger'
+admin_list[[4]]$ADM0_FR <- 'Mali'
 
 admin_cols <- c('ADM2_EN'='ADM2', 'ADM2_FR'='ADM2', 'adm_02'='ADM2',
                 'ADM1_EN'='ADM1', 'ADM1_FR'='ADM1', 'adm_01'='ADM1',
@@ -82,9 +83,10 @@ for (i in 1:length(countries)){
   plots$plotID[plots$country==countries[[i]]] <- paste0(substr(plots$country[plots$country==countries[[i]]][1], 1,1), 
                                                         plots$plot_ID[plots$country==countries[[i]]])
 }
+
 # Write final plots df
 st_write(plots, dsn=paste0('output/plot_data/all_countries/Countries_plots_final.GeoJSON'))
-
+plots <- st_read(dsn=paste0('output/plot_data/all_countries/Countries_plots_final.GeoJSON'))
 
 ##### Import satellite data and merge into single df
 l8_ts <- fread(paste0('output/time_series/', countries[[1]], '_l8_ts.csv'))  

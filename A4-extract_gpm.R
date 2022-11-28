@@ -45,5 +45,11 @@ for (country in countries){
   gpm_ts <- rbind(gpm_ts, gpm_ts_cntr)
 }
 
+gpm_ts$plot_ID <- gpm_ts$plotID
+for (i in 1:length(countries)){
+  gpm_ts$plotID[gpm_ts$country==countries[[i]]] <- paste0(substr(gpm_ts$country[gpm_ts$country==countries[[i]]][1], 1,1), 
+                                                          gpm_ts$plot_ID[gpm_ts$country==countries[[i]]])
+}
+
 #### Write as csv
 fwrite(gpm_ts, paste0('output/time_series/gpm/Countries_gpm_monthly.csv'))
