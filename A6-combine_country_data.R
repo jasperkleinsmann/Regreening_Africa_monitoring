@@ -14,6 +14,7 @@ plots <- st_sf(plots)
 # Change the column names of the plots data
 names(plots)[names(plots) == 'district_commune_woreda'] <- 'county'
 names(plots)[names(plots) == 'county_region'] <- 'region'
+names(plots)[names(plots) == 'country'] <- 'Country'
 
 # Import centroids
 country_plots_pnt_path <- list()
@@ -76,6 +77,9 @@ plots$county <- admins$ADM2[unlist(county_index)] # county
 plots$region <- admin$ADM1[unlist(county_index)] # region
 plots$country <- admin$ADM0[unlist(county_index)] # country
 plots <- plots[!is.na(plots$county),] # remove plots outside the country boundary
+# Exclude plots where the submitted country does not corresponds to the country based on plot coordinates
+plots <- plots[-c(which(plots$country!=plots$Country)),]
+plots <- plots[,-c('Country')] # remote Country and keep country
 
 # create new column that is truly unique 
 plots$plot_ID <- plots$plotID

@@ -19,13 +19,12 @@ library(lubridate)
 library(BBmisc)
 library(readr)
 
-country <- 'Kenya'
 
 # Import the l8 and s1 timeseries 
-l8_ts <- data.table(read_csv(paste0('output/time_series/', country, '_l8_ts.csv')))
+l8_ts <- read_csv('output/time_series/Countries_l8_ts.csv')
 
 # Import the plots data in include the plant date in the graph
-plots <- data.table(read_csv(paste0('output/plot_data/', country, '/',country, '_plots_all.csv')))
+plots <- data.table(st_read('output/plot_data/all_countries/Countries_plots_final.GeoJSON'))
 
 # Filter out time stamps before the observation
 l8_ts <- l8_ts[l8_ts$yearmon > as.Date('2013-01-01') & l8_ts$yearmon < as.Date('2022-11-01')] # start L8 observation
@@ -165,47 +164,47 @@ ggplot()+
 ############################################################### PER PLOT
 ################### Aggregate per plot and yearmonth
 ##### L8
-l8_ts_by_plt <- l8_ts %>% 
+l8_ts_plt <- l8_ts %>% 
   group_by(plotID, yearmon) %>% 
   summarize(ndvi=mean(ndvi, na.rm=T),
-            prcp=mean(prcp_month)) 
-# Make lagged variables
-l8_ts_by_plt <- l8_ts_by_plt %>% 
+            prcp=mean(prcp_month)) %>% 
+  # Add lagged precipitation variables
   mutate(prcp_lag1=data.table::shift(prcp, n=1, type='lag'),
-         prcp_lag2=data.table::shift(prcp, n=2, type='lag')) 
-
-# Identify the first observation date 
-l8_first_obs_plt <- l8_ts_by_plt %>%
-  filter(!is.na(ndvi)) %>% 
-  summarize(first_obs=min(yearmon),
-            last_obs=max(yearmon))
-# Exclude rows before 1st observation for each county
-l8_ts_plt <- l8_ts_by_plt[l8_ts_by_plt$plotID==l8_first_obs_plt$plotID[1] & l8_ts_by_plt$yearmon >= 
-                            l8_first_obs_plt$first_obs[1] & l8_ts_by_plt$yearmon <= l8_first_obs_plt$last_obs[1],]
-for (i in 2:nrow(l8_first_obs_plt)){
-  print(i)
-  plot_tsibble <- l8_ts_by_plt[l8_ts_by_plt$plotID==l8_first_obs_plt$plotID[i] & l8_ts_by_plt$yearmon >= 
-                                 l8_first_obs_plt$first_obs[i] & l8_ts_by_plt$yearmon <= l8_first_obs_plt$last_obs[i],]
-  l8_ts_plt <- rbind(l8_ts_plt, plot_tsibble)
-}
-
-# Make it a tsibble and interpolate the NAs
-l8_ts_plt <- l8_ts_plt %>% 
+         prcp_lag2=data.table::shift(prcp, n=2, type='lag')) %>% 
+  # Check if plot ts is all NAs and exclude
+  mutate(entire_na = length(which(!is.na(ndvi))) == 0) %>% 
+  filter(!entire_na) %>% 
+  # Exclude NAs when at beginning or end of time series
+  slice(min(which(!is.na(ndvi))):max(which(!is.na(ndvi)))) %>% 
+  # Remove the entire.na column
+  select(!entire_na) %>% 
+  # Add country and county data to the summarised data
+  left_join(plots[,c('country', 'county', 'plotID')], by='plotID') %>% 
+  # Interpolate NDVI values
   mutate(yearmonth=yearmonth(as.character(yearmon)),
          ndvi_int=na.approx(ndvi)) %>% 
+  # Convert to tsibble
+  as_tsibble(key=plotID, index=yearmonth)
+
+fwrite(l8_ts_plt, 'output/time_series/Countries_l8_plt.csv')
+
+
+# Read the plot-yearmon df
+l8_ts_plt <- read_csv('output/time_series/Countries_l8_plt.csv')
+
+l8_ts_plt <- l8_ts_plt %>% 
+  mutate(yearmonth=yearmonth(as.character(yearmon))) %>% 
   as_tsibble(index=yearmonth, key=plotID)
 
 # Create reference and validation datasets
 l8_ref_plt <- l8_ts_plt %>% filter(year(yearmonth) < 2017)
 l8_val_plt <- l8_ts_plt %>% filter(year(yearmonth) >= 2017)
 
-fwrite(l8_ts_plt, paste0('output/time_series/', country, '_l8_plt.csv'))
-l8_ts_plt <- data.table(read_csv(paste0('output/time_series/', country, '_l8_plt.csv')))
 
 
 ##################################### Forecast vegetation signal per PLOT
 #### L8
-l8_armax_plt <- l8_ref_plt %>%
+l8_armax_plt <- l8_ref_plt %>% 
   model(ARIMA(ndvi_int ~ prcp + prcp_lag1 + prcp_lag2, stepwise = T, ic='aic'))
 l8_fc_plt <- fabletools::forecast(l8_armax_plt, new_data = l8_val_plt[,c('yearmonth', 'prcp', 'prcp_lag1', 'prcp_lag2', 'plotID')])
 
@@ -216,10 +215,10 @@ l8_fc_plt <- l8_fc_plt %>%
   mutate(upper_95=l8_plt_ci$upper,
          lower_95=l8_plt_ci$lower)
 
-save(l8_fc_plt, file = paste0('output/models/', country,'_l8_fc_plt.RDS'))
-save(l8_armax_plt, file = paste0('output/models/', country,'_l8_armax_plt.RDS'))
-load(paste0('output/models/', country, '_l8_fc_plt.RDS'))
-load(paste0('output/models/', country, '_l8_armax_plt.RDS'))
+save(l8_fc_plt, file = 'output/models/Countries_l8_fc_plt.RDS')
+save(l8_armax_plt, file = 'output/models/Countries_l8_armax_plt.RDS')
+load('output/models/Countries_l8_fc_plt.RDS')
+load('output/models/Countries_l8_armax_plt.RDS')
 
 # Plot
 plt <- 35

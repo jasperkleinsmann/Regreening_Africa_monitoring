@@ -7,7 +7,7 @@ library(magrittr)
 library(ggplot2)
 library(lwgeom) 
 
-country <- 'Senegal'
+country <- 'Ethiopia'
 
 #### Import data 
 cohort.tree.tp <- data.table(read_csv(paste0('data/plot_data/', country, '_tp_species.csv')))
@@ -274,6 +274,9 @@ c('local_name','mgt_thinning', 'mgt_pollarding_lopping','mgt_coppicing','mgt_oth
 
 # Merge TP and FMNR plant date together
 plots.all$plant_date <- fifelse(is.na(plots.all$plant_date), plots.all$plant_date_fmnr, plots.all$plant_date)
+
+# Make sure country variable is correct
+plots.all$country <- country
 ####
 
 
@@ -307,6 +310,12 @@ st_write(obj=plot.centroid, dsn=paste0('output/plot_data/', country, '/', countr
 st_write(obj=centroid_multi, dsn=paste0('output/plot_data/', country, '/', country, '_centroid_multi.GeoJSON'), driver='GeoJSON')
 st_write(obj=centroid_multi, dsn=paste0('output/plot_data/', country, '/', country, '_centroid_multi.csv'), driver='CSV')
 
+
+
+
+
+
+##### Fixing erros
 # Read the polygon data
 plots.all <- st_read(paste0('output/plot_data/', country, '/', country, '_plots_all.GeoJSON'))
 country <- 'Senegal'

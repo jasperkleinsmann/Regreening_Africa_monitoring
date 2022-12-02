@@ -19,4 +19,3 @@ l8_ts <- merge(l8_ts, plots[,c('plotID', 'county','region')], by=c('plotID'), al
 
 # Write cleaned L8 and S1 ts
 fwrite(l8_ts, 'output/time_series/Countries_l8_ts.csv')
-
