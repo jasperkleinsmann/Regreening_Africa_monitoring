@@ -208,6 +208,7 @@ l8_armax_plt <- l8_ref_plt %>%
   model(ARIMA(ndvi_int ~ prcp + prcp_lag1 + prcp_lag2, stepwise = T, ic='aic'))
 l8_fc_plt <- fabletools::forecast(l8_armax_plt, new_data = l8_val_plt[,c('yearmonth', 'prcp', 'prcp_lag1', 'prcp_lag2', 'plotID')])
 
+
 # Extract confidence levels
 l8_plt_ci <- l8_fc_plt$ndvi_int %>% 
   hilo(level = 95) 
