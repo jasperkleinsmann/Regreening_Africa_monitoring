@@ -104,7 +104,27 @@ ggplot()+
         plot.title = element_text(size = 32, face = 'bold', hjust = 0.5))
 dev.off()
 
-# Regional statistics
+
+
+# Hectare green/not green per zone
+county_green <- county_green[county_green$l8_ha>10,]
+
+ha <- c()
+for (i in 1:length(county_green$l8_ha_green)){
+  green_yes_no <- c(county_green$l8_ha_green[i], county_green$l8_ha[i]-county_green$l8_ha_green[i])
+  ha <- append(ha, green_yes_no)
+}
+perc_green <- c()
+for (i in 1:length(county_green$l8_ha_green)){
+  perc_green_yes_no <- c(county_green$l8_ha_perc[i], NA)
+  perc_green <- append(perc_green, perc_green_yes_no)
+}
+total <- rep(county_green$l8_ha, each=2)
+county <- c(rep(county_green$county, each=2))
+success <- rep(c('Greening detected', 'No greening detected'),4)
+green_county_stack <- data.table(county, success, ha, perc_green, total)
+
+
 png("Figures/presentation_06-09/Rwanda_cnt_green_ha.png",
     width = 1400, height = 800)
 ggplot(cnt_green, aes(x="", y=l8_ha_green, fill=county)) +
@@ -120,6 +140,25 @@ ggplot(cnt_green, aes(x="", y=l8_ha_green, fill=county)) +
   labs(title=paste('Total confirmed regreened area in Rwanda --> 2554ha'))
 dev.off()
 
+
+png(paste0("Figures/Internship_report/",country,"_county_green_ha.png"),
+    width = 1400, height = 800)
+ggplot(green_county_stack) +
+  geom_bar(aes(x=county, y=ha, fill=success), position='stack',stat="identity")+
+  geom_text(aes(x=county, y=total, 
+                label=scales::percent(round(perc_green,2))), 
+            color='black', vjust=-0.3,size=9, fontface='bold')+
+  scale_fill_manual(values=c('darkgreen', 'dark blue'))+
+  theme(legend.position = "none",
+        axis.title.x = element_blank(),
+        legend.title=element_blank(), 
+        axis.title = element_text(size = 24),
+        axis.text=element_text(size=22),
+        axis.text.x=element_text(angle=0),
+        plot.title = element_text(size = 36, face = 'bold', hjust = 0.5))+
+  labs(x='District', y='Area (in ha)', 
+       title='Total Area Monitored vs Area Greening Detected Per Sub-County')
+dev.off()
 
 #png("Figures/presentation_06-09/Rwanda_cnt_green_prct.png",
     #width = 1400, height = 800)
