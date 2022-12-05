@@ -107,7 +107,7 @@ dev.off()
 
 
 # Hectare green/not green per zone
-county_green <- county_green[county_green$l8_ha>10,]
+county_green <- cnt_green[cnt_green$l8_ha>1000,]
 
 ha <- c()
 for (i in 1:length(county_green$l8_ha_green)){
@@ -121,24 +121,9 @@ for (i in 1:length(county_green$l8_ha_green)){
 }
 total <- rep(county_green$l8_ha, each=2)
 county <- c(rep(county_green$county, each=2))
-success <- rep(c('Greening detected', 'No greening detected'),4)
-green_county_stack <- data.table(county, success, ha, perc_green, total)
-
-
-png("Figures/presentation_06-09/Rwanda_cnt_green_ha.png",
-    width = 1400, height = 800)
-ggplot(cnt_green, aes(x="", y=l8_ha_green, fill=county)) +
-  geom_bar(stat="identity", width=0.5, color="white") +
-  coord_polar("y", start=0) +
-  theme_void()+
-  geom_text(aes(y = c(1650, 250, 900, 2250), 
-                label = c('Gatsibo (672ha)', 'Nyagatare (398ha)',
-                          'Kayonza (901ha)', 'Bugesera (581ha)')), color = "white", size=7.5) +
-  scale_fill_brewer(palette="Set1")+
-  theme(legend.position="none")+
-  theme(plot.title = element_text(size = 28, face = 'bold', hjust = 0.5))+
-  labs(title=paste('Total confirmed regreened area in Rwanda --> 2554ha'))
-dev.off()
+country <- c(rep(county_green$country, each=2))
+success <- rep(c('Greening detected', 'No greening detected'),35)
+green_county_stack <- data.table(country, county, success, ha, perc_green, total)
 
 
 png(paste0("Figures/Internship_report/",country,"_county_green_ha.png"),
@@ -147,14 +132,14 @@ ggplot(green_county_stack) +
   geom_bar(aes(x=county, y=ha, fill=success), position='stack',stat="identity")+
   geom_text(aes(x=county, y=total, 
                 label=scales::percent(round(perc_green,2))), 
-            color='black', vjust=-0.3,size=9, fontface='bold')+
+            color='black', vjust=-0.3,size=4, fontface='bold')+
   scale_fill_manual(values=c('darkgreen', 'dark blue'))+
   theme(legend.position = "none",
         axis.title.x = element_blank(),
         legend.title=element_blank(), 
         axis.title = element_text(size = 24),
         axis.text=element_text(size=22),
-        axis.text.x=element_text(angle=0),
+        axis.text.x=element_text(angle=45),
         plot.title = element_text(size = 36, face = 'bold', hjust = 0.5))+
   labs(x='District', y='Area (in ha)', 
        title='Total Area Monitored vs Area Greening Detected Per Sub-County')
@@ -196,8 +181,8 @@ ggplot(green_type_bar) +
        title='Area succesully regreened per management type (in ha)')
 
 
-ggplot(cnt_green[cnt_green$number_sites>50,]) +
-  geom_bar(aes(x=county, y=l8_ha_perc, fill=county), stat="identity")+
+ggplot(cnt_green[cnt_green$number_sites>1000,]) +
+  geom_bar(aes(x=county, y=l8_ha_perc, col=country, group=county, fill=l8_ha), stat="identity")+
   theme(legend.title=element_blank(), 
         axis.title = element_text(size = 24),
         axis.text=element_text(size=20),
@@ -206,10 +191,28 @@ ggplot(cnt_green[cnt_green$number_sites>50,]) +
   labs(x='', y='Area succesfully regreened (ha)', 
        title='Area succesully regreened per management type (in ha)')
 
+ggplot(plots_dt)+
+  geom_point(aes(x=plant_date,y=green_date, col=country), alpha=0.3)+
+  geom_smooth(aes(x=plant_date,y=green_date), method='loess',se=F)+
+  xlim(date('2015-01-01'), date('2022-10-01'))
 
+ggplot()
 
+unique(year(plots_dt$plant_date))
 
+plots_dt %>% 
+  filter(plant_date < date('2000-01-01'))
 
+plots_dt %>% 
+  filter(plant_date>date('2015-01-01')) %>% 
+  group_by(year(plant_date)) %>% 
+  summarise(n = n())
+
+boxplot(aes(plots_dt$plant_date)
+yearmon(plots_dt$plant_date)
+plots_dt$green_date
+
+View(plots_dt)
 
 
 
