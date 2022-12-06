@@ -7,7 +7,6 @@ library(zoo)
 library(tidyverse)
 library(scales)
 
-country <- 'Kenya'
 
 load('output/models/Countries_l8_fc_plt.RDS')
 l8_ts_plt <- read_csv('output/time_series/Countries_l8_plt.csv')
@@ -46,7 +45,9 @@ plots$l8_green[is.na(plots$l8_green)] <- 0
 fwrite(l8_green, 'output/models/Countries_l8_green.csv')
 
 # Add the residuals per plot to the plots df
+
 plots <- l8_armax_plt %>% 
+l8_armax_plt %>% 
   residuals() %>% 
   tibble() %>% 
   group_by(plotID) %>% 
@@ -66,37 +67,26 @@ plots <- st_read(dsn='output/plot_data/all_countries/Countries_plots_green.GeoJS
 
 
 # Get county level regreening 
-plots_dt <- (plots)
+plots_dt <- tibble(plots)
 
-cnt_green <- plots_dt[,.(country= country[1],
-                         l8_green=sum(regreening,na.rm=T),
-                         number_sites=length(regreening),
-                         perc=sum(regreening,na.rm=T)/length(regreening),
-                         l8_ha=sum(Hectare),
-                         l8_ha_green=sum(Hectare[regreening==1],na.rm=T),
-                         l8_ha_perc=sum(Hectare[regreening==1],na.rm=T)/sum(Hectare)),
-                      by=list(county)]
-cnt_green
+cnt_green <- plots_dt %>% 
+  group_by(county) %>% 
+  summarise(country = first(country),
+            l8_green = sum(regreening,na.rm=T),
+            number_sites = length(regreening),
+            perc = sum(regreening,na.rm=T)/length(regreening),
+            l8_ha = sum(Hectare),
+            l8_ha_green = sum(Hectare[regreening==1],na.rm=T),
+            l8_ha_perc = sum(Hectare[regreening==1],na.rm=T)/sum(Hectare)) %>% 
+  arrange(country)
 
-
-
-
-
-type_green <- plots_dt[,.(l8_green=sum(regreening,na.rm=T),
-                          number_sites=length(regreening),
-                          perc=sum(regreening,na.rm=T)/length(regreening),
-                          l8_ha=sum(Hectare),
-                          l8_ha_green=sum(Hectare[regreening==1],na.rm=T),
-                          l8_ha_perc=sum(Hectare[regreening==1],na.rm=T)/sum(Hectare)),
-                      by=list(type)]
+type_green <- plots_dt %>% 
+  group_by(type) %>% 
+  summarise(l8_green = sum(regreening,na.rm=T),
+            number_sites = length(regreening),
+            perc = sum(regreening,na.rm=T)/length(regreening),
+            l8_ha = sum(Hectare),
+            l8_ha_green = sum(Hectare[regreening==1],na.rm=T),
+            l8_ha_perc = sum(Hectare[regreening==1],na.rm=T)/sum(Hectare))
 type_green
 
-# Exclude plots where no model was fit
-cnt_green_fit <- plots_dt[,.(l8_green=sum(l8_green,na.rm=T),
-                         number_sites=length(l8_green[fit==1]),
-                         perc=sum(l8_green,na.rm=T)/length(l8_green[fit==1]),
-                         l8_ha=sum(Hectare[fit==1], na.rm=T),
-                         l8_ha_green=sum(Hectare[l8_green==1],na.rm=T),
-                         l8_ha_perc=sum(Hectare[fit==1], na.rm=T)/sum(Hectare)),
-                      by=list(county)]
-cnt_green_fit
