@@ -1,0 +1,128 @@
+---
+title: "A10-Validation_create_S2_composites"
+author: "Jasper"
+format: html
+editor: visual
+---
+
+Packages
+Load
+```{python}
+import ee
+import pandas as pd
+from datetime import datetime, date, time, timedelta
+from dateutil.relativedelta import *
+import geopandas as gpd
+import numpy as np
+import time
+from pprint import pprint
+import os, re
+from gee_subset import gee_subset
+import shapely.geometry
+from shapely.geometry import Point,Polygon
+import re
+import geemap
+import fiona
+```
+
+```{python}
+# Trigger the authentication flow.
+# ee.Authenticate()
+
+# Initialize the library.
+ee.Initialize()
+```
+
+Load data
+```{python}
+admins = gpd.read_file('output/plot_data/all_countries/Countries_admins.GeoJSON')
+countries = gpd.read_file('data/admin_boundaries/Country_admin/Regreening_countries.GeoJSON')
+aminds_dt = pd.DataFrame(admins)
+
+```
+
+```{python}
+# Indicate country
+cntr = "Rwanda"
+```
+
+```{python}
+# Filter country row from geojson
+country = countries[countries["name"] == cntr]
+
+c = [i for i in country.geometry]
+x,y = c[0].exterior.coords.xy
+cords = np.dstack((x,y)).tolist()
+geometry = ee.Geometry.Polygon(cords)
+
+```
+
+```{python}
+## S2 Cloud mask
+def maskclouds(image): 
+  qa = image.select("QA60")
+  cloudBitMask  = 1 << 10
+  cirrusBitMask = 1 << 11
+  mask=qa.bitwiseAnd(cloudBitMask).eq(0).And(qa.bitwiseAnd(cirrusBitMask).eq(0))
+  return image.updateMask(mask).divide(10000).set('date', image.date().format());
+```
+
+```{python}
+bands = ["B2", "B3", "B4", "B8", "QA60"]
+# First year with data is 2018
+start = datetime(2018, 1, 1)
+end = datetime(2019, 1, 1)
+
+# Apply to collection
+s2 = ee.ImageCollection("COPERNICUS/S2_SR") \
+         .filterBounds(geometry) \
+         .filterDate(start, end) \
+         .select(tuple(bands))\
+         .map(maskclouds)
+```     
+      
+```{python}
+# Check if image collection is good
+s2.getInfo()
+
+type(s2)
+
+s2.size().getInfo()
+
+s2.first().bandNames().getInfo()
+listOfImages = s2.toList(s2.size())
+ee.Image(listOfImages.get(0)).bandNames().getInfo();
+
+```
+
+```{python}
+## Calculate annual median (e.g. for year1 = 2021, year2 = 2021)
+perc50 = s2.reduce(ee.Reducer.percentile([50]))
+perc50.bandNames().getInfo() # Check that you have the right band names (“SR_B1_p50”, etc.)
+
+```
+
+```{python}
+img_todrive = {
+    'description': cntr + "_" + str(start.year) + "_50th",
+    'folder': 'Regreening_Africa',
+    'scale': 10,
+    'maxPixels': 1e13,
+    'region': geometry,
+    'fileFormat': 'GeoTIFF'}
+
+task = ee.batch.Export.image.toDrive(perc50, **img_todrive)
+task.start()
+```
+
+```{python}
+# Check progress of export
+ee.data.listOperations()
+```
+
+
+
+
+
+
+
