@@ -77,6 +77,7 @@ for (i in 1:length(countries)){
 
 # Write VI dt
 fwrite(refl_aggr_l8, 'output/time_series/Countries_aggr_l8.csv')
+refl_aggr_l8 <- fread('output/time_series/Countries_aggr_l8.csv')
 
 # Remove not needed variables
 rm(scale_fac, 
