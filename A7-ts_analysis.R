@@ -18,7 +18,8 @@ library(scales)
 library(lubridate)
 library(BBmisc)
 library(readr)
-
+library(ggdist)
+library(distributional)
 
 # Import the l8 and s1 timeseries 
 l8_ts <- read_csv('output/time_series/Countries_l8_ts.csv')
@@ -188,7 +189,6 @@ l8_ts_plt <- l8_ts %>%
 
 fwrite(l8_ts_plt, 'output/time_series/Countries_l8_plt.csv')
 
-
 # Read the plot-yearmon df
 l8_ts_plt <- read_csv('output/time_series/Countries_l8_plt.csv')
 
@@ -201,13 +201,11 @@ l8_ref_plt <- l8_ts_plt %>% filter(year(yearmonth) < 2017)
 l8_val_plt <- l8_ts_plt %>% filter(year(yearmonth) >= 2017)
 
 
-
 ##################################### Forecast vegetation signal per PLOT
 #### L8
 l8_armax_plt <- l8_ref_plt %>% 
   model(ARIMA(ndvi_int ~ prcp + prcp_lag1 + prcp_lag2, stepwise = T, ic='aic'))
 l8_fc_plt <- fabletools::forecast(l8_armax_plt, new_data = l8_val_plt[,c('yearmonth', 'prcp', 'prcp_lag1', 'prcp_lag2', 'plotID')])
-
 
 # Extract confidence levels
 l8_plt_ci <- l8_fc_plt$ndvi_int %>% 

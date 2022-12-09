@@ -7,7 +7,7 @@ library(zoo)
 library(tidyverse)
 library(scales)
 
-
+load('output/models/Countries_l8_armax_plt.RDS')
 load('output/models/Countries_l8_fc_plt.RDS')
 l8_ts_plt <- read_csv('output/time_series/Countries_l8_plt.csv')
 
@@ -41,13 +41,10 @@ plots$plant_date[plots$plant_date <= date("2000-01-01") | plots$plant_date >= da
 
 #Merge
 plots <- merge(plots, l8_green, by='plotID', all.x=T, all.y=F)
-plots$l8_green[is.na(plots$l8_green)] <- 0
 fwrite(l8_green, 'output/models/Countries_l8_green.csv')
 
 # Add the residuals per plot to the plots df
-
 plots <- l8_armax_plt %>% 
-l8_armax_plt %>% 
   residuals() %>% 
   tibble() %>% 
   group_by(plotID) %>% 
@@ -69,8 +66,15 @@ plots <- st_read(dsn='output/plot_data/all_countries/Countries_plots_green.GeoJS
 # Get county level regreening 
 plots_dt <- tibble(plots)
 
+plots_dt %>% 
+  filter(is.na(regreening)) %>% 
+  group_by(country) %>% 
+  select(Hectare)
+  
+  
 cnt_green <- plots_dt %>% 
   group_by(county) %>% 
+  filter(!is.na(regreening)) %>% 
   summarise(country = first(country),
             l8_green = sum(regreening,na.rm=T),
             number_sites = length(regreening),
