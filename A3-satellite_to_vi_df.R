@@ -19,6 +19,7 @@ cloud_landsat <- function(x){
   else(return(1))
 }
 
+
 ##### Import satellite data and merge into single df
 # Create df
 refl_aggr_l8 <- data.table(date=lubridate::Date(),plotID=integer(), ndvi=double(), yearmon=lubridate::Date(),country=character())

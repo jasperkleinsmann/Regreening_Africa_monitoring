@@ -14,7 +14,7 @@ library(readr)
 library(forcats)
 
 
-l8_ts <- data.table(read_csv('output/time_series/Rwanda_l8_ts.csv'))
+l8_ts <- read_csv('output/time_series/Countries_l8_ts.csv')
 
 # Import the plots data in include the plant date in the graph
 plots <- st_read(dsn='output/plot_data/all_countries/Countries_plots_green.GeoJSON')
@@ -115,7 +115,7 @@ for (i in 1:length(county_green$l8_ha_green)){
 total <- rep(county_green$l8_ha, each=2)
 county <- c(rep(county_green$county, each=2))
 country <- c(rep(county_green$country, each=2))
-success <- rep(c('Greening detected', 'No greening detected'),35)
+success <- rep(c('Greening detected', 'No greening detected'),nrow(county_green))
 green_county_stack <- data.table(country, county, success, ha, perc_green, total)
 
 
@@ -171,6 +171,7 @@ ggplot(plots)
 
 ggplot(plots_dt)+
   geom_point(aes(x=plant_date,y=green_date, col=country), alpha=0.3)+
+  geom_smooth(aes(x=plant_date, y=green_date), method='loess')+
   xlim(date('2015-01-01'), date('2022-10-01'))
 
 ggplot(plots_dt)+
@@ -204,7 +205,20 @@ plots_dt %>%
   summarise(n = n())
 
 
+plots_dt %>% 
+  group_by(country) %>% 
+  summarise(country = first(country),
+            l8_green = sum(regreening,na.rm=T),
+            number_sites = length(regreening),
+            perc = sum(regreening,na.rm=T)/length(regreening),
+            l8_ha = sum(Hectare),
+            l8_ha_green = sum(Hectare[regreening==1],na.rm=T),
+            l8_ha_perc = sum(Hectare[regreening==1],na.rm=T)/sum(Hectare)) %>% 
+  left_join(admins, by=c('country' = 'ADM0'))
+  ggplot()+
+  geom_sf(aes(geometry = geometry, fill = perc))
 
 
+  
 
 

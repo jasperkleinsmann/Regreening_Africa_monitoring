@@ -43,6 +43,7 @@ plots$plant_date[plots$plant_date <= date("2000-01-01") | plots$plant_date >= da
 plots <- merge(plots, l8_green, by='plotID', all.x=T, all.y=F)
 plots$l8_green[is.na(plots$l8_green)] <- 0
 fwrite(l8_green, 'output/models/Countries_l8_green.csv')
+l8_green <- read_csv('output/models/Countries_l8_green.csv')
 
 # Add the residuals per plot to the plots df
 l8_armax_plt %>% 
@@ -63,6 +64,7 @@ plots_dt <- tibble(plots)
 
 cnt_green <- plots_dt %>% 
   group_by(county) %>% 
+  filter(!is.na(regreening)) %>% 
   summarise(country = first(country),
             l8_green = sum(regreening,na.rm=T),
             number_sites = length(regreening),
