@@ -70,8 +70,8 @@ def maskclouds(image):
 ```{python}
 bands = ["B2", "B3", "B4", "B8", "QA60"]
 # First year with data is 2018
-start = datetime(2018, 1, 1)
-end = datetime(2019, 1, 1)
+start = datetime(2019, 1, 1)
+end = datetime(2020, 1, 1)
 
 # Apply to collection
 s2 = ee.ImageCollection("COPERNICUS/S2_SR") \
