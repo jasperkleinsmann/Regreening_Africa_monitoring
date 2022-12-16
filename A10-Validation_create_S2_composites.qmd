@@ -5,8 +5,8 @@ format: html
 editor: visual
 ---
 
-Packages
-Load
+Packages Load
+
 ```{python}
 import ee
 import pandas as pd
@@ -34,30 +34,56 @@ ee.Initialize()
 ```
 
 Load data
+
 ```{python}
 admins = gpd.read_file('output/plot_data/all_countries/Countries_admins.GeoJSON')
-countries = gpd.read_file('data/admin_boundaries/Country_admin/Regreening_countries.GeoJSON')
 aminds_dt = pd.DataFrame(admins)
-
+countries = gpd.read_file('data/admin_boundaries/Country_admin/Regreening_countries.GeoJSON')
 ```
 
 ```{python}
 # Indicate country
-cntr = "Rwanda"
+#region = "Rwanda"
+region = "Ouallam"
+```
+
+Create geometry
+```{python}
+# Filter country row from geojson
+country = countries[countries["name"] == region]
+
+c = [i for i in country.geometry]
+x,y = c[0].exterior.coords.xy
+cords = np.dstack((x,y)).tolist()
+geometry = ee.Geometry.Polygon(cords)
 ```
 
 ```{python}
-# Filter country row from geojson
-country = countries[countries["name"] == cntr]
+# Filter county
+county = admins[admins["ADM2"] == region]
+county = county.explode() # convert multipolygon to polygon
 
-c = [i for i in country.geometry]
+c = [i for i in county.geometry]
 x,y = c[0].exterior.coords.xy
 cords = np.dstack((x,y)).tolist()
 geometry = ee.Geometry.Polygon(cords)
 
 ```
 
+Cloud masks
 ```{python}
+# Landsat 8 cloud mask
+def maskClouds(image):
+    # Bits 3 and 5 are cloud shadow and cloud, respectively.
+    cloudShadowBitMask = (1 << 3)
+    cloudsBitMask = (1 << 5)
+    # Get the pixel QA band.
+    qa = image.select('QA_PIXEL')
+    # Both flags should be set to zero, indicating clear conditions.
+    mask = qa.bitwiseAnd(cloudShadowBitMask).eq(
+        0)                 .And(qa.bitwiseAnd(cloudsBitMask).eq(0))
+    return image.updateMask(mask)
+  
 ## S2 Cloud mask
 def maskclouds(image): 
   qa = image.select("QA60")
@@ -67,46 +93,53 @@ def maskclouds(image):
   return image.updateMask(mask).divide(10000).set('date', image.date().format());
 ```
 
+Set parameters
 ```{python}
-bands = ["B2", "B3", "B4", "B8", "QA60"]
+#bands = ["B2", "B3", "B4", "B8", "QA60"] # for sentinel 2
+bands = ["SR_B2", "SR_B3", "SR_B4", "SR_B5", "QA_PIXEL"] # for landsat 8
 # First year with data is 2018
-start = datetime(2019, 1, 1)
-end = datetime(2020, 1, 1)
+start = datetime(2020, 1, 1)
+end = datetime(2021, 1, 1)
+```
+>>>>>>> 5981e1e4fba6306f91adaec874c74589a06b9af2
 
-# Apply to collection
-s2 = ee.ImageCollection("COPERNICUS/S2_SR") \
+```{python}
+# Apply to sentinel 1
+col = ee.ImageCollection("COPERNICUS/S2_SR") \
          .filterBounds(geometry) \
          .filterDate(start, end) \
          .select(tuple(bands))\
          .map(maskclouds)
-```     
-      
+```
+
+```{python}
+# Apply to landsat 8
+col = ee.ImageCollection('LANDSAT/LC08/C02/T1_L2') \
+         .filterBounds(geometry) \
+         .filterDate(start, end) \
+         .select(tuple(bands))\
+         .map(maskClouds)
+```
+
 ```{python}
 # Check if image collection is good
-s2.getInfo()
+col.size().getInfo()
 
-type(s2)
-
-s2.size().getInfo()
-
-s2.first().bandNames().getInfo()
-listOfImages = s2.toList(s2.size())
-ee.Image(listOfImages.get(0)).bandNames().getInfo();
-
+col.first().bandNames().getInfo()
 ```
 
 ```{python}
 ## Calculate annual median (e.g. for year1 = 2021, year2 = 2021)
-perc50 = s2.reduce(ee.Reducer.percentile([50]))
+perc50 = col.reduce(ee.Reducer.percentile([50]))
 perc50.bandNames().getInfo() # Check that you have the right band names (“SR_B1_p50”, etc.)
 
 ```
 
 ```{python}
 img_todrive = {
-    'description': cntr + "_" + str(start.year) + "_50th",
+    'description': region + "_" + str(start.year) + "_50th",
     'folder': 'Regreening_Africa',
-    'scale': 10,
+    'scale': 30,
     'maxPixels': 1e13,
     'region': geometry,
     'fileFormat': 'GeoTIFF'}
@@ -119,10 +152,3 @@ task.start()
 # Check progress of export
 ee.data.listOperations()
 ```
-
-
-
-
-
-
-
