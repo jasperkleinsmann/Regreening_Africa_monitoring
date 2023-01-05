@@ -85,11 +85,12 @@ cnt_green <- plots_dt %>%
             l8_ha_perc = sum(Hectare[regreening==1],na.rm=T)/sum(Hectare)) %>% 
   arrange(country)
 
-cnt_green %>% 
-  filter(country=='Senegal') %>% 
-  arrange(desc(l8_ha)) %>% 
-  filter(l8_ha>100) %>% 
-  write_csv('Senegal_greening.csv')
+l8_ts_plt %>% 
+  filter(county=='Ouallam') %>% 
+  group_by(year(yearmon)) %>% 
+  summarise(prcp = mean(prcp)) %>% 
+  ggplot()+
+  geom_col(aes(x=`year(yearmon)`, y=prcp), fill='dark blue')
   
 
 

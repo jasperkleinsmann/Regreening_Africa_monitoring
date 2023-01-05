@@ -43,7 +43,7 @@ cloud_landsat <- function(x){
 }
 ```
 
-# Convert to reflectance and add dates
+Convert to reflectance and add dates
 ```{r}
 refl_val <- fread('output/gee/Val_refl_l8.csv', select =c('date', 'SR_B4', 'SR_B5','QA_PIXEL','plotID'))  
 
@@ -74,7 +74,7 @@ refl_aggr_val <- refl_val[,.(ndvi=mean(ndvi,na.rm=T)), by=list(plotID, date)]
 refl_aggr_val$yearmon <- as.Date(ISOdate(year(refl_aggr_val$date), month(refl_aggr_val$date), 15))
 ```
 
-## Extract the GPM at validation points and add to reflectance data
+## Extract the GPM at validation points
 ```{r}
 
 
