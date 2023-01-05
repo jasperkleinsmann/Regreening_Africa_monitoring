@@ -53,3 +53,8 @@ for (i in 1:length(countries)){
 
 #### Write as csv
 fwrite(gpm_ts, paste0('output/time_series/gpm/Countries_gpm_monthly.csv'))
+
+
+
+
+
