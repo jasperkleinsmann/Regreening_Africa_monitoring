@@ -1,3 +1,14 @@
+---
+title: "A3-satellite_to_vi_df"
+author: "Jasper"
+format: html
+editor: visual
+---
+
+Script to 1) merge all the country-specific reflectance data extracted from GEE and 2) to convert these raw DN values in to surface reflectance
+
+```{r}
+# Libraries
 library(data.table)
 library(tidyverse)
 library(dplyr)
@@ -7,9 +18,15 @@ library(ggplot2)
 library(scales)
 library(lubridate)
 library(BBmisc)
+```
 
+```{r}
+# Define countries
 countries <- list('Ethiopia','Ghana','Kenya','Mali','Niger','Rwanda','Senegal')
+```
 
+## Create cloud function
+```{r}
 # Function for cloud filtering
 cloud_landsat <- function(x){
   bits <- as.numeric(intToBits(x))[1:16]
@@ -18,12 +35,14 @@ cloud_landsat <- function(x){
   }
   else(return(1))
 }
+```
 
-##### Import satellite data and merge into single df
-# Create df
-refl_aggr_l8 <- data.table(date=lubridate::Date(),plotID=integer(), ndvi=double(), yearmon=lubridate::Date(),country=character())
+## Import satellite data and merge into single df
+```{r}
+# Create empty df
+refl_aggr_l8 <- data.table(date=lubridate::Date(),plotID=integer(), ndvi=double(), yearmon=lubridate::Date(), country=character())
 
-# Do the country specific analysis and loop trhough all countries
+# Do the country specific analysis and loop through all countries
 for (i in countries){
   # Import data
   refl_l8 <- fread(paste0('output/gee/', i, '_refl_l8_pol.csv'), select =c('date', 'SR_B4', 'SR_B5','QA_PIXEL','plotID'))  
@@ -60,20 +79,28 @@ for (i in countries){
   
   # Rbind
   refl_aggr_l8 <- rbind(refl_aggr_l8, refl_aggr_l8_cntr)
-
 }
+```
 
-# Create new column that is truly plot unique
+## Create plot unique IDs across countries
+```{r}
+# Create new column that unique compared to all countries
 refl_aggr_l8$plot_ID <- refl_aggr_l8$plotID
+
+# Add the country letter before the plotID
 for (i in 1:length(countries)){
   refl_aggr_l8$plotID[refl_aggr_l8$country==countries[[i]]] <- paste0(substr(refl_aggr_l8$country[refl_aggr_l8$country==countries[[i]]][1], 1,1), 
                                                                       refl_aggr_l8$plot_ID[refl_aggr_l8$country==countries[[i]]])
 }
+```
 
+## Write aggregated reflectance dataset
+```{r}
 # Write VI dt
 fwrite(refl_aggr_l8, 'output/time_series/Countries_aggr_l8.csv')
 refl_aggr_l8 <- fread('output/time_series/Countries_aggr_l8.csv')
 
-# Remove not needed variables
+# Remove some variables
 rm(scale_fac, 
    dupl_l8, dupl_l9, offset, cloud_landsat)
+```

@@ -5,4 +5,120 @@ format: html
 editor: visual
 ---
 
+```{r}
+library(tidyverse)
+library(sf)
+library(fable)
+library(fabletools)
+library(feasts)
+library(data.table)
+```
+
+Validation data pre-processing
+```{r}
+# Add column validation data
+val <- st_read('data/validation_points.geojson')
+val <- val %>% 
+  arrange(country, regreened) %>% 
+  mutate(plotID = seq(1,nrow(val)))
+
+# Write validation point data as geojson and csv
+st_write(obj=val, dsn='data/validation_points.GeoJSON', driver='GeoJSON')
+st_write(obj=val, dsn='data/validation_points.csv', driver='CSV')
+```
+
+## Extract satellite information
+Extract the landsat 8 and GPM satellite information using the GEE extract script (A2)
+
+
+## Create reflectance data.frame for validation points
+Function for cloud filtering
+```{r}
+cloud_landsat <- function(x){
+  bits <- as.numeric(intToBits(x))[1:16]
+  if(bits[7] == 1 && bits[5] == 0 && bits[3] == 0){
+    return(0)
+  }
+  else(return(1))
+}
+```
+
+# Convert to reflectance and add dates
+```{r}
+refl_val <- fread('output/gee/Val_refl_l8.csv', select =c('date', 'SR_B4', 'SR_B5','QA_PIXEL','plotID'))  
+
+refl_val$date <- as.Date(refl_val$date, tryFormats = "%d/%m/%Y")
+  
+# Scale DN values to reflectance values
+scale_fac <- 0.0000275
+offset <- -0.2
+refl_val[,c('SR_B4', 'SR_B5')] <- (refl_val[,c('SR_B4', 'SR_B5')] * scale_fac) + offset
+
+# Remove negative reflectance
+refl_val <- refl_val[refl_val$SR_B4 >= 0,]
+refl_val <- refl_val[refl_val$SR_B5 >= 0,]
+  
+# Remove clouds
+refl_val$clouds <- 0
+refl_val$clouds <- lapply(refl_val$QA_PIXEL, cloud_landsat) # Apply function to all pixels 
+refl_val <- refl_val[refl_val$clouds==0,] # Filter out pixels with clouds
+
+# Compute some VIs
+refl_val$ndvi <- (refl_val$SR_B5 - refl_val$SR_B4) / (refl_val$SR_B5 + refl_val$SR_B4)
+  
+# Take average per validation point and date
+#(This is to remove duplicates with the same date and plotID as a result of overlapping images and a single point falling in two images on the same date)
+refl_aggr_val <- refl_val[,.(ndvi=mean(ndvi,na.rm=T)), by=list(plotID, date)]
+
+# Add yearmon
+refl_aggr_val$yearmon <- as.Date(ISOdate(year(refl_aggr_val$date), month(refl_aggr_val$date), 15))
+```
+
+## Extract the GPM at validation points and add to reflectance data
+```{r}
+
+
+```
+
+
+```{r}
+
+
+```
+
+
+```{r}
+
+
+```
+
+
+```{r}
+
+
+```
+
+
+```{r}
+
+
+```
+
+
+```{r}
+
+
+```
+
+
+```{r}
+
+
+```
+
+
+```{r}
+
+
+```
 
