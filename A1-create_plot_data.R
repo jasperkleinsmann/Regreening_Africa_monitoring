@@ -311,10 +311,6 @@ st_write(obj=centroid_multi, dsn=paste0('output/plot_data/', country, '/', count
 st_write(obj=centroid_multi, dsn=paste0('output/plot_data/', country, '/', country, '_centroid_multi.csv'), driver='CSV')
 
 
-
-
-
-
 ##### Fixing erros
 # Read the polygon data
 plots.all <- st_read(paste0('output/plot_data/', country, '/', country, '_plots_all.GeoJSON'))

@@ -44,7 +44,7 @@ countries = gpd.read_file('data/admin_boundaries/Country_admin/Regreening_countr
 ```{python}
 # Indicate country
 #region = "Rwanda"
-region = "Ouallam"
+region = "Arsi"
 ```
 
 Create geometry
@@ -98,10 +98,10 @@ Set parameters
 #bands = ["B2", "B3", "B4", "B8", "QA60"] # for sentinel 2
 bands = ["SR_B2", "SR_B3", "SR_B4", "SR_B5", "QA_PIXEL"] # for landsat 8
 # First year with data is 2018
-start = datetime(2020, 1, 1)
-end = datetime(2021, 1, 1)
+start = datetime(2019, 1, 1)
+end = datetime(2020, 1, 1)
 ```
->>>>>>> 5981e1e4fba6306f91adaec874c74589a06b9af2
+
 
 ```{python}
 # Apply to sentinel 1
