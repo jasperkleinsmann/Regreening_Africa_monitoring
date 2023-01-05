@@ -1,22 +1,42 @@
+---
+title: "A4-extract_gpm"
+author: "Jasper"
+format: html
+editor: visual
+---
 
+Script to 1) extract all country-specific GPM data, 2) do some basic pre-processing on it and 3) merge it together
+
+```{r}
+# Libraries
 library(terra)
 library(sf)
 library(lubridate)
 library(data.table)
+```
 
-# Assign county, regio and country to each plots file
+```{r}
+# Define countries
 countries <- list('Ethiopia','Ghana','Kenya','Mali','Niger','Rwanda','Senegal')
+```
 
-#### Create dates
+## Create time series parameters
+```{r}
+# Set start/end
 start_ts <- as.Date('2013-01-01')
 end_ts <- as.Date('2022-11-15')
 
+# Determine number of months in time series period
 months_dif <- (year(end_ts) - year(start_ts)) * 12 + (month(end_ts) - month(start_ts))
 months_ts <- seq(ymd(start_ts), by = "month", length.out=months_dif)
+```
 
-
+## Import country GPM data and pre-process
+```{r}
+# Create empty GPM df
 gpm_ts <- data.table(plotID=numeric(), prcp_month=double(), date=lubridate::Date(), yearmon=lubridate::Date(), country=character())
-# Import all data and put in dataframe
+
+# Import all country specific GPM data and put in gpm_ts df
 for (country in countries){
   print(country)
   # Import 
@@ -44,17 +64,18 @@ for (country in countries){
   # Merge all country data.tables
   gpm_ts <- rbind(gpm_ts, gpm_ts_cntr)
 }
+```
 
+## Create plot unique IDs across countries
+```{r}
 gpm_ts$plot_ID <- gpm_ts$plotID
 for (i in 1:length(countries)){
   gpm_ts$plotID[gpm_ts$country==countries[[i]]] <- paste0(substr(gpm_ts$country[gpm_ts$country==countries[[i]]][1], 1,1), 
                                                           gpm_ts$plot_ID[gpm_ts$country==countries[[i]]])
 }
+```
 
-#### Write as csv
+## Write aggregated reflectance dataset
+```{r}
 fwrite(gpm_ts, paste0('output/time_series/gpm/Countries_gpm_monthly.csv'))
-
-
-
-
-
+```
