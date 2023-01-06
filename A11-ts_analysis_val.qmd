@@ -12,26 +12,33 @@ library(fable)
 library(fabletools)
 library(feasts)
 library(data.table)
+library(terra)
+library(lubridate)
+library(tsibble)
+library(ggplot2)
+library(scales)
+library(zoo)
+library(caret)
 ```
 
-Validation data pre-processing
+Pre-processing validation data
 ```{r}
 # Add column validation data
-val <- st_read('data/validation_points.geojson')
-val <- val %>% 
+val_pnts <- st_read('data/validation_points.GeoJSON')
+val_pnts <- val_pnts %>% 
   arrange(country, regreened) %>% 
   mutate(plotID = seq(1,nrow(val)))
 
 # Write validation point data as geojson and csv
-st_write(obj=val, dsn='data/validation_points.GeoJSON', driver='GeoJSON')
-st_write(obj=val, dsn='data/validation_points.csv', driver='CSV')
+st_write(obj=val_pnts, dsn='data/validation_points.GeoJSON', driver='GeoJSON')
+st_write(obj=val_pnts, dsn='data/validation_points.csv', driver='CSV')
 ```
 
 ## Extract satellite information
 Extract the landsat 8 and GPM satellite information using the GEE extract script (A2)
 
 
-## Create reflectance data.frame for validation points
+## Create reflectance dataframe for validation points
 Function for cloud filtering
 ```{r}
 cloud_landsat <- function(x){
@@ -75,50 +82,179 @@ refl_aggr_val$yearmon <- as.Date(ISOdate(year(refl_aggr_val$date), month(refl_ag
 ```
 
 ## Extract the GPM at validation points
+Import
 ```{r}
+# gpm
+gpm <- rast('output/gee/gpm/Val_GPM_stack.tif')
 
+# convert validation points to terra:vector
+val_pnts <- vect(val_pnts)
+```
 
+Set time series parameters
+```{r}
+# Set start/end
+start_ts <- as.Date('2013-01-01')
+end_ts <- as.Date('2023-01-15')
+
+# Determine number of months in time series period
+months_dif <- (year(end_ts) - year(start_ts)) * 12 + (month(end_ts) - month(start_ts))
+months_ts <- seq(ymd(start_ts), by = "month", length.out=months_dif)
 ```
 
 
 ```{r}
+# Assign dates to gpm_stack layers
+names(gpm) <- months_ts
+  
+#### Extract values for each layer
+gpm_val <- data.table(extract(gpm, val_pnts, cells=F))
+gpm_val <- gpm_val[,-c('ID')] # remove ID column
+rownames(gpm_val) <- val_pnts$plotID
 
+# Transpose df
+gpm_ts <- cbind(row = as.integer(rownames(gpm_val)), stack(gpm_val))
+  
+# Clean df
+names(gpm_ts) <- c('plotID', 'prcp_month', 'date')
+gpm_ts$yearmon <- as.Date(ISOdate(year(gpm_ts$date), month(gpm_ts$date), 15))
 
+# Concert val_pnts back to sf object
+val_pnts <- st_as_sf(val_pnts)
 ```
 
-
+## Add precipitation to reflectance ts
 ```{r}
+# Convert val_pnts to datatable 
+val_pnts_dt <- data.table(val_pnts)
 
-
+# Merge reflectance ts with precipitation data
+val_ts <- merge(refl_aggr_val, gpm_ts[,c('plotID', 'yearmon','prcp_month')],
+               by=c('plotID', 'yearmon'), all.y=T)
 ```
 
-
+## Vegetation modeling
 ```{r}
-
-
+# Filter out time stamps before the observation
+val_ts <- val_ts[val_ts$yearmon > as.Date('2013-01-01') & val_ts$yearmon < as.Date('2022-11-01')]
 ```
 
-
+Create tsibble for analysis
 ```{r}
+# Creates tsibble with lagged precipitation and interpolate the missing ndvi values
+val_ts_pnt <- val_ts %>% 
+  group_by(plotID, yearmon) %>% 
+  summarize(ndvi=mean(ndvi, na.rm=T),
+            prcp=mean(prcp_month)) %>% 
+  # Add lagged precipitation variables
+  mutate(prcp_lag1=data.table::shift(prcp, n=1, type='lag'),
+         prcp_lag2=data.table::shift(prcp, n=2, type='lag')) %>% 
+  # Check if plot ts is all NAs and exclude
+  mutate(entire_na = length(which(!is.na(ndvi))) == 0) %>% 
+  filter(!entire_na) %>% 
+  # Exclude NAs when at beginning or end of time series
+  slice(min(which(!is.na(ndvi))):max(which(!is.na(ndvi)))) %>% 
+  # Remove the entire.na column
+  select(!entire_na) %>% 
+  # Interpolate NDVI values
+  mutate(yearmonth=yearmonth(as.character(yearmon)),
+         ndvi_int=na.approx(ndvi)) %>% 
+  # Convert to tsibble
+  as_tsibble(key=plotID, index=yearmonth)
 
-
+# Create reference and validation sets
+val_ref_pnt <- val_ts_pnt %>% filter(year(yearmonth) < 2017)
+val_prd_pnt <- val_ts_pnt %>% filter(year(yearmonth) >= 2017)
 ```
 
-
+Train ARIMA models and predict
 ```{r}
+# Train ARIMA models
+val_armax_pnt <- val_ref_pnt %>% 
+  model(ARIMA(ndvi_int ~ prcp + prcp_lag1 + prcp_lag2, stepwise = T, ic='aic'))
 
+# Forecast ndvi based on models and precipitation
+val_fc_pnt <- fabletools::forecast(val_armax_pnt, new_data = val_prd_pnt[,c('yearmonth', 'prcp', 'prcp_lag1', 'prcp_lag2', 'plotID')])
 
+# Extract 95% confidence levels
+val_pnt_ci <- val_fc_pnt$ndvi_int %>% 
+  hilo(level = 95) 
+val_fc_pnt <- val_fc_pnt %>% 
+  mutate(upper_95=val_pnt_ci$upper,
+         lower_95=val_pnt_ci$lower)
+
+# Save the ARIMA models and forecast
+save(val_fc_pnt, file = 'output/models/Val_l8_fc_pnt.RDS')
+save(val_armax_pnt, file = 'output/models/Val_l8_armax_pnt.RDS')
 ```
 
 
+## Interpret vegetation modeling
+Prepare data
 ```{r}
+# Select relevant rows and add yearmon column
+val_fc_pnt_dt <- val_fc_pnt[,c('.mean', 'yearmonth', 'plotID', 'upper_95', 'lower_95')]
+val_fc_pnt_dt$yearmon <- as.Date(ISOdate(year(val_fc_pnt_dt$yearmonth), month(val_fc_pnt_dt$yearmonth), 15))
 
-
+# Merge actual ndvi with the forecasted ndvi
+val_fc_pnt_dt <- merge(val_fc_pnt_dt, val_ts_pnt[,c('ndvi_int', 'plotID', 'yearmon')], 
+                   by=c('yearmon', 'plotID'), all.x=T)
+val_fc_pnt_dt <- tibble(val_fc_pnt_dt)
 ```
 
-
+Compare actual and predicted ndvi
 ```{r}
+# Count consecutive months actual ndvi > predicted ndvi
+val_green <- val_fc_pnt_dt %>% 
+  arrange(plotID, by_group=T) %>% 
+  mutate(above_95=ndvi_int>upper_95,
+         above95_lead = lead(above_95),
+         above95_lead2 = lead(above_95, n=2), # Lead 2 to code 3 months significant greening
+         sgnf_outlier_2 = if_else(above_95==T & above95_lead==T, 1, 0),
+         sgnf_outlier_3 = if_else(above_95==T & above95_lead==T & above95_lead2==T, 1, 0),
+         peak_date_2 = if_else(sgnf_outlier_2 == 1, yearmon, ymd(NA)),
+         peak_date_3 = if_else(sgnf_outlier_3 == 1, yearmon, ymd(NA))) %>% 
+  group_by(plotID) %>% 
+  summarise(sgnf_outlier_2 = sum(sgnf_outlier_2),
+            green_date_2 = min(peak_date_2, na.rm=T),
+            sgnf_outlier_3 = sum(sgnf_outlier_3),
+            green_date_3 = min(peak_date_3, na.rm=T)) %>% 
+  mutate(regreening_2 = if_else(sgnf_outlier_2 > 0, 1, 0),
+         regreening_3 = if_else(sgnf_outlier_3 > 0, 1, 0),
+         # change inf values in green_date to NA
+         green_date_2 = structure(ifelse(is.infinite(green_date_2), NA, green_date_2), class='Date'),
+         green_date_3 = structure(ifelse(is.infinite(green_date_3), NA, green_date_3), class='Date'))
 
-
+# merge results to the validation dataset
+val_pnts <- merge(val_pnts, val_green, by='plotID', all.x=T, all.y=F)
 ```
+
+## Compare time series analysis with validation data
+```{r}
+confusionMatrix(factor(val_pnts$regreening_2), factor(val_pnts$regreened), positive='1')
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

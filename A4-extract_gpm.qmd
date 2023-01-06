@@ -5,7 +5,7 @@ format: html
 editor: visual
 ---
 
-Script to 1) extract all country-specific GPM data, 2) do some basic pre-processing on it and 3) merge it together
+Script to 1) extract all country-specific GPM data, 2) do some basic pre-processing on it and 3) merge it together. Last the 4) this script adds the precipitation data to the plot reflectance time series
 
 ```{r}
 # Libraries
@@ -21,6 +21,7 @@ countries <- list('Ethiopia','Ghana','Kenya','Mali','Niger','Rwanda','Senegal')
 ```
 
 ## Create time series parameters
+
 ```{r}
 # Set start/end
 start_ts <- as.Date('2013-01-01')
@@ -32,6 +33,7 @@ months_ts <- seq(ymd(start_ts), by = "month", length.out=months_dif)
 ```
 
 ## Import country GPM data and pre-process
+
 ```{r}
 # Create empty GPM df
 gpm_ts <- data.table(plotID=numeric(), prcp_month=double(), date=lubridate::Date(), yearmon=lubridate::Date(), country=character())
@@ -78,4 +80,31 @@ for (i in 1:length(countries)){
 ## Write aggregated reflectance dataset
 ```{r}
 fwrite(gpm_ts, paste0('output/time_series/gpm/Countries_gpm_monthly.csv'))
+```
+
+## Add precipitation data to reflectance ts
+Import
+```{r}
+# Import reflectance ts
+refl_l8 <- fread('output/time_series/Countries_aggr_l8.csv')
+
+# Import plot geometries and convert to dt
+plots <- st_read(dsn='output/plot_data/all_countries/Countries_plots_final.GeoJSON')
+plots <- data.table(plots)
+names(plots)[names(plots) == 'Plot_id'] <- 'plot_ID' # change column name
+```
+
+Merge precipitation and reflectance data
+```{r}
+# Merge precipitation to reflectance ts
+l8_ts <- merge(refl_l8, gpm_ts[,c('plotID', 'yearmon','prcp_month','plot_ID','country')],
+               by=c('plotID', 'yearmon', 'plot_ID','country'), all.y=T)
+
+# Add county and region information to reflectance ts
+l8_ts <- merge(l8_ts, plots[,c('plotID', 'county','region')], by=c('plotID'), all.y=T)
+```
+
+Write reflectance ts with precipitation
+```{r}
+fwrite(l8_ts, 'output/time_series/Countries_l8_ts.csv')
 ```
