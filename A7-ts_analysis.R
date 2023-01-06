@@ -1,25 +1,14 @@
 
 library(feasts)
 library(tsibble)
-library(forecast)
-library(stats)
 library(zoo)
-library(astsa)
-library(urca) # for kpss test
-library(TSA)
 library(fable)
 library(data.table)
 library(tidyverse)
 library(dplyr)
 library(sf)
-library(magrittr)
 library(ggplot2)
 library(scales)
-library(lubridate)
-library(BBmisc)
-library(readr)
-library(ggdist)
-library(distributional)
 
 # Import the l8 and s1 timeseries 
 l8_ts <- read_csv('output/time_series/Countries_l8_ts.csv')

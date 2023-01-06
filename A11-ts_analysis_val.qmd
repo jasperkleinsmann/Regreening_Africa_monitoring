@@ -21,7 +21,7 @@ library(zoo)
 library(caret)
 ```
 
-Pre-processing validation data
+## Import and pre-process validation data
 ```{r}
 # Add column validation data
 val_pnts <- st_read('data/validation_points.GeoJSON')
@@ -231,30 +231,10 @@ val_pnts <- merge(val_pnts, val_green, by='plotID', all.x=T, all.y=F)
 
 ## Compare time series analysis with validation data
 ```{r}
-confusionMatrix(factor(val_pnts$regreening_2), factor(val_pnts$regreened), positive='1')
+confusionMatrix(factor(val_pnts$regreening_3[val_pnts$country=='Ethiopia']), 
+                factor(val_pnts$regreened[val_pnts$country=='Ethiopia']), positive='1')
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+```{r}
+View(val_pnts %>%  
+  filter(green_date_3 > as.Date('2021-12-31')))
+```

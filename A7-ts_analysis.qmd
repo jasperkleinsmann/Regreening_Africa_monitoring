@@ -1,0 +1,196 @@
+---
+title: "A7-ts_analysis"
+author: "Jasper"
+format: html
+editor: visual
+---
+
+Libraries
+```{r}
+library(feasts)
+library(tsibble)
+library(zoo)
+library(fable)
+library(data.table)
+library(tidyverse)
+library(dplyr)
+library(sf)
+library(ggplot2)
+library(scales)
+```
+
+Import 
+```{r}
+# Import the reflectance ts 
+l8_ts <- read_csv('output/time_series/Countries_l8_ts.csv')
+
+# Import the plot data
+plots <- data.table(st_read('output/plot_data/all_countries/Countries_plots_final.GeoJSON'))
+
+# Filter out the general time period of interest
+l8_ts <- l8_ts[l8_ts$yearmon > as.Date('2013-01-01') & l8_ts$yearmon < as.Date('2022-11-01')] # start L8 observation
+```
+
+# Plot analysis
+## Create plot-specific tsibble 
+```{r}
+# Create tsibble with monthly average ndvi and precipitation, lagged precipitation and interpolate the missing NDVI values
+l8_ts_plt <- l8_ts %>% 
+  group_by(plotID, yearmon) %>% 
+  summarize(ndvi=mean(ndvi, na.rm=T),
+            prcp=mean(prcp_month)) %>% 
+  # Add lagged precipitation variables
+  mutate(prcp_lag1=data.table::shift(prcp, n=1, type='lag'),
+         prcp_lag2=data.table::shift(prcp, n=2, type='lag')) %>% 
+  # Check if plot ts is all NAs and exclude
+  mutate(entire_na = length(which(!is.na(ndvi))) == 0) %>% 
+  filter(!entire_na) %>% 
+  # Exclude NAs when at beginning or end of time series
+  slice(min(which(!is.na(ndvi))):max(which(!is.na(ndvi)))) %>% 
+  # Remove the entire.na column
+  select(!entire_na) %>% 
+  # Add country and county data to the summarised data
+  left_join(plots[,c('country', 'county', 'plotID')], by='plotID') %>% 
+  # Interpolate NDVI values
+  mutate(yearmonth=yearmonth(as.character(yearmon)),
+         ndvi_int=na.approx(ndvi)) %>% 
+  # Convert to tsibble
+  as_tsibble(key=plotID, index=yearmonth)
+
+# Write plot tsibble
+fwrite(l8_ts_plt, 'output/time_series/Countries_l8_plt.csv')
+
+# Read plot ts data
+l8_ts_plt <- read_csv('output/time_series/Countries_l8_plt.csv')
+
+# Convert back to tsibble after reading 'l8_ts_plt'
+l8_ts_plt <- l8_ts_plt %>% 
+  mutate(yearmonth=yearmonth(as.character(yearmon))) %>% 
+  as_tsibble(index=yearmonth, key=plotID)
+
+# Split in reference and validation ts
+l8_ref_plt <- l8_ts_plt %>% filter(year(yearmonth) < 2017)
+l8_val_plt <- l8_ts_plt %>% filter(year(yearmonth) >= 2017)
+```
+
+## Train and predict vegetation per plot with ARIMA
+```{r}
+# Train ARIMA models
+l8_armax_plt <- l8_ref_plt %>% 
+  model(ARIMA(ndvi_int ~ prcp + prcp_lag1 + prcp_lag2, stepwise = T, ic='aic'))
+
+# Forecast with model and precipitation predictors
+l8_fc_plt <- fabletools::forecast(l8_armax_plt, new_data = l8_val_plt[,c('yearmonth', 'prcp', 'prcp_lag1', 'prcp_lag2', 'plotID')])
+
+# Extract 95% confidence levels
+l8_plt_ci <- l8_fc_plt$ndvi_int %>% 
+  hilo(level = 95) 
+l8_fc_plt <- l8_fc_plt %>% 
+  mutate(upper_95=l8_plt_ci$upper,
+         lower_95=l8_plt_ci$lower)
+
+# Save the models and predictions
+save(l8_fc_plt, file = 'output/models/Countries_l8_fc_plt.RDS')
+save(l8_armax_plt, file = 'output/models/Countries_l8_armax_plt.RDS')
+load('output/models/Countries_l8_fc_plt.RDS')
+load('output/models/Countries_l8_armax_plt.RDS')
+```
+
+## Visualise site-spefic forecast result
+```{r}
+# Indicate site ID
+plt <- 35
+
+ggplot()+
+  geom_line(data=l8_ref_plt[l8_ref_plt$plotID==plt,], 
+            aes(x = yearmonth, y = ndvi_int - residuals(l8_armax_plt[l8_armax_plt$plotID==plt,])$.resid), 
+            col='darkred',lwd=0.65, alpha=0.6) +
+  geom_line(data=l8_ts_plt[l8_ts_plt$plotID==plt,], aes(x=yearmonth, y=ndvi_int), col='darkgreen',lwd=0.7)+
+  geom_line(data=l8_ts_plt[l8_ts_plt$plotID==plt,], 
+            aes(x=yearmonth, y=normalize(prcp, method='range',c(0.2,0.3))), col='blue')+
+  geom_line(data=l8_fc_plt[l8_fc_plt$plotID==plt,], aes(x = yearmonth, y = .mean), 
+            col='darkred',lwd=0.65, lty=2)+
+  geom_ribbon(data=l8_fc_plt[l8_fc_plt$plotID==plt,], aes(x=yearmonth, ymin=lower_95, ymax=upper_95),
+              alpha=0.2, fill='red')+
+  geom_point(data = l8_ts[l8_ts$plotID==plt,], aes(x = yearmon, y = ndvi), alpha=0.5)+
+  geom_vline(xintercept=plots[plots$plotID==plt,]$plant_date,lty=3,alpha=0.75)+
+  labs(y='NDVI', x='Time', title=paste('Actual (green) vs predicted (red) NDVI in including 95% CI'))
+```
+
+
+
+# County analysis
+## Create plot-specific tsibble 
+```{r}
+# Summarize by county and yearmon and take average ndvi and precipitation
+l8_ts_by_cnt <- l8_ts %>% 
+  group_by(county, yearmon) %>% 
+  summarize(ndvi=mean(ndvi, na.rm=T),
+            prcp=mean(prcp_month)) 
+# Lag the prcp
+l8_ts_by_cnt <- l8_ts_by_cnt %>% 
+  mutate(prcp_lag1=lag(prcp, 1),
+         prcp_lag2=lag(prcp, 2))
+
+# Identify the first observation date
+l8_first_obs <- l8_ts_by_cnt %>%
+  filter(!is.na(ndvi)) %>% 
+  summarize(first_obs=min(yearmon),
+            last_obs=max(yearmon))
+
+# Exclude rows before 1st observation for each county
+l8_ts_cnt <- l8_ts_by_cnt[l8_ts_by_cnt$county==l8_first_obs$county[1] & l8_ts_by_cnt$yearmon >= 
+                            l8_first_obs$first_obs[1] & l8_ts_by_cnt$yearmon <= l8_first_obs$last_obs[1],]
+for (i in 2:nrow(l8_first_obs)){
+  print(i)
+  plot_tsibble <- l8_ts_by_cnt[l8_ts_by_cnt$county==l8_first_obs$county[i] & l8_ts_by_cnt$yearmon >= 
+                                 l8_first_obs$first_obs[i] & l8_ts_by_cnt$yearmon <= l8_first_obs$last_obs[i],]
+  l8_ts_cnt <- rbind(l8_ts_cnt, plot_tsibble)
+}
+
+# Make it a tsibble and fill with lagged variables
+l8_ts_cnt <- l8_ts_cnt %>% 
+  mutate(yearmonth=yearmonth(as.character(yearmon)),
+         ndvi_int=na.approx(ndvi)) %>% 
+  as_tsibble(index=yearmonth, key=county)
+
+# Split in reference and validation ts
+l8_ref_cnt <- l8_ts_cnt %>% filter(year(yearmonth) < 2017)
+l8_val_cnt <- l8_ts_cnt %>% filter(year(yearmonth) >= 2017)
+```
+
+## Train and predict vegetation per county with ARIMA
+```{r}
+# Train ARIMA
+l8_armax_cnt <- l8_ref_cnt %>%
+  model(ARIMA(ndvi_int ~ prcp + prcp_lag1 + prcp_lag2, stepwise = T))
+
+# Forecast vegetation 
+l8_fc_cnt <- fabletools::forecast(l8_armax_cnt, new_data = l8_val_cnt[,c('yearmonth', 'prcp', 'prcp_lag1', 'prcp_lag2', 'county')])
+
+# Extract 95% confidence levels
+l8_cnt_ci <- l8_fc_cnt$ndvi_int %>% 
+  hilo(level = 95) 
+l8_fc_cnt <- l8_fc_cnt %>% 
+  mutate(upper_95=l8_cnt_ci$upper,
+         lower_95=l8_cnt_ci$lower)
+```
+
+## Visualise county-specific forecast result
+```{r}
+# Identify county
+cnt <- 'Ainabkoi'
+
+ggplot()+
+  geom_line(data=l8_ref_cnt[l8_ref_cnt$county==cnt,], 
+            aes(x = yearmonth, y = ndvi - residuals(l8_armax_cnt[l8_armax_cnt$county==cnt,])$.resid), 
+            col='darkred',lwd=0.65, alpha=0.6) +
+  geom_line(data=l8_ts_cnt[l8_ts_cnt$county==cnt,], aes(x=yearmonth, y=ndvi_int), col='darkgreen',lwd=0.7)+
+  geom_line(data=l8_ts_cnt[l8_ts_cnt$county==cnt,], 
+            aes(x=yearmonth, y=normalize(prcp, method='range',c(0.1,0.2))), col='blue')+
+  geom_line(data=l8_fc_cnt[l8_fc_cnt$county==cnt,], aes(x = yearmonth, y = .mean), 
+            col='darkred',lwd=0.65, lty=2)+
+  geom_ribbon(data=l8_fc_cnt[l8_fc_cnt$county==cnt,], aes(x=yearmonth, ymin=lower_95, ymax=upper_95),
+              alpha=0.1, fill='red')+
+  labs(y='NDVI', x='Time', title=paste('Actual (green) vs predicted (red) NDVI in',cnt,'including 95% CI'))
+```
