@@ -131,6 +131,9 @@ val_pnts_dt <- data.table(val_pnts)
 # Merge reflectance ts with precipitation data
 val_ts <- merge(refl_aggr_val, gpm_ts[,c('plotID', 'yearmon','prcp_month')],
                by=c('plotID', 'yearmon'), all.y=T)
+
+# Write complete validation time series
+fwrite(val_ts, 'output/time_series/Val_l8_ts.csv')
 ```
 
 ## Vegetation modeling
@@ -186,6 +189,8 @@ val_fc_pnt <- val_fc_pnt %>%
 # Save the ARIMA models and forecast
 save(val_fc_pnt, file = 'output/models/Val_l8_fc_pnt.RDS')
 save(val_armax_pnt, file = 'output/models/Val_l8_armax_pnt.RDS')
+load(file = 'output/models/Val_l8_fc_pnt.RDS')
+load(file = 'output/models/Val_l8_armax_pnt.RDS')
 ```
 
 
@@ -227,14 +232,27 @@ val_green <- val_fc_pnt_dt %>%
 
 # merge results to the validation dataset
 val_pnts <- merge(val_pnts, val_green, by='plotID', all.x=T, all.y=F)
+
+# Write validation with greening results
+st_write(val_pnts, dsn='output/plot_data/all_countries/Val_pnts_green.GeoJSON', driver = 'GeoJSON')
 ```
 
 ## Compare time series analysis with validation data
 ```{r}
 confusionMatrix(factor(val_pnts$regreening_3[val_pnts$country=='Ethiopia']), 
                 factor(val_pnts$regreened[val_pnts$country=='Ethiopia']), positive='1')
+
+confusionMatrix(factor(val_pnts$regreening_2), 
+                factor(val_pnts$regreened), positive='1', mode='everything')
 ```
+
+
 ```{r}
 View(val_pnts %>%  
   filter(green_date_3 > as.Date('2021-12-31')))
+
+ggplot(val_pnts)+
+  geom_violin(aes(x=factor(regreened), y=sgnf_outlier_2), alpha=0.1)
+
+val_pnts$regreened
 ```

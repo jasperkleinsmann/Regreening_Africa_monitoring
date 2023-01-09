@@ -76,7 +76,7 @@ ggplot()+
 
 
 # Per plot
-plt <- 35
+plt <- 'E35'
 png(paste0("Figures/presentation_06-09/Plot_graph_19731.png"),
     width = 1400, height = 800)
 ggplot()+
@@ -98,6 +98,29 @@ ggplot()+
 dev.off()
 
 
+l8_fc_plt %>% 
+  filter(plotID=="E35") %>% 
+  mutate(ci_95 = hilo(ndvi_int,95),
+         upper_95=ci_95$upper,
+         lower_95=ci_95$lower,
+         ci_80 = hilo(ndvi_int, 80),
+         upper_80=ci_80$upper,
+         lower_80=ci_80$lower,
+         ci_50 = hilo(ndvi_int, 50),
+         upper_50=ci_50$upper,
+         lower_50=ci_50$lower) %>% 
+  ggplot()+
+  geom_point(data = l8_ts[l8_ts$plotID==plt,], aes(x = yearmonth(yearmon), y = ndvi), alpha=0.2)+
+  geom_vline(xintercept = plots[plots$plotID==plt,]$plant_date, lty=3, alpha=1)+
+  geom_ribbon(aes(x=yearmonth, ymin=lower_95, ymax=upper_95), alpha=0.1, fill='blue')+
+  geom_ribbon(aes(x=yearmonth, ymin=lower_80, ymax=upper_80), alpha=0.2, fill='blue')+
+  #geom_ribbon(aes(x=yearmonth, ymin=lower_50, ymax=upper_50), alpha=0.3, fill='blue')+
+  geom_line(aes(x = yearmonth, y = .mean), col='darkblue',lwd=0.9, lty=2)+
+  geom_line(data=l8_ts_plt[l8_ts_plt$plotID==plt,], aes(x=yearmonth, y=ndvi_int), col='black',lwd=0.7)+
+  labs(y='NDVI', x='Time', title=paste('Actual (green) vs predicted (red) vegetation including 95% CI'))+
+  theme(axis.title = element_text(size = 24),
+        axis.text=element_text(size=20),
+        plot.title = element_text(size = 32, face = 'bold', hjust = 0.5))
 
 # Hectare green/not green per zone
 county_green <- cnt_green[cnt_green$l8_ha>1000,]
@@ -192,12 +215,8 @@ plots_dt %>%
 
   
 ggplot(plots_dt)+
-  geom_boxplot(aes(x=country,y=rmse))
+  geom_boxplot(aes(x=country,y=rmse/sd))
   
-
-
-plots_dt %>% 
-  filter(plant_date < date('2000-01-01'))
 
 plots_dt %>% 
   filter(plant_date>date('2015-01-01')) %>% 
@@ -214,10 +233,10 @@ plots_dt %>%
             l8_ha = sum(Hectare),
             l8_ha_green = sum(Hectare[regreening==1],na.rm=T),
             l8_ha_perc = sum(Hectare[regreening==1],na.rm=T)/sum(Hectare)) %>% 
-  left_join(admins, by=c('country' = 'ADM0'))
+  left_join(admins, by=c('country' = 'ADM0')) %>% 
   ggplot()+
   geom_sf(aes(geometry = geometry, fill = perc))
-
+ 
 
   
 

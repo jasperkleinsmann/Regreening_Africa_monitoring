@@ -99,22 +99,30 @@ load('output/models/Countries_l8_armax_plt.RDS')
 ## Visualise site-spefic forecast result
 ```{r}
 # Indicate site ID
-plt <- 35
+plt <- 'E35'
 
-ggplot()+
-  geom_line(data=l8_ref_plt[l8_ref_plt$plotID==plt,], 
-            aes(x = yearmonth, y = ndvi_int - residuals(l8_armax_plt[l8_armax_plt$plotID==plt,])$.resid), 
-            col='darkred',lwd=0.65, alpha=0.6) +
-  geom_line(data=l8_ts_plt[l8_ts_plt$plotID==plt,], aes(x=yearmonth, y=ndvi_int), col='darkgreen',lwd=0.7)+
-  geom_line(data=l8_ts_plt[l8_ts_plt$plotID==plt,], 
-            aes(x=yearmonth, y=normalize(prcp, method='range',c(0.2,0.3))), col='blue')+
-  geom_line(data=l8_fc_plt[l8_fc_plt$plotID==plt,], aes(x = yearmonth, y = .mean), 
-            col='darkred',lwd=0.65, lty=2)+
-  geom_ribbon(data=l8_fc_plt[l8_fc_plt$plotID==plt,], aes(x=yearmonth, ymin=lower_95, ymax=upper_95),
-              alpha=0.2, fill='red')+
-  geom_point(data = l8_ts[l8_ts$plotID==plt,], aes(x = yearmon, y = ndvi), alpha=0.5)+
-  geom_vline(xintercept=plots[plots$plotID==plt,]$plant_date,lty=3,alpha=0.75)+
-  labs(y='NDVI', x='Time', title=paste('Actual (green) vs predicted (red) NDVI in including 95% CI'))
+l8_fc_plt %>% 
+  filter(plotID==plt) %>% 
+  mutate(ci_95 = hilo(ndvi_int,95),
+         upper_95=ci_95$upper,
+         lower_95=ci_95$lower,
+         ci_80 = hilo(ndvi_int, 80),
+         upper_80=ci_80$upper,
+         lower_80=ci_80$lower,
+         ci_50 = hilo(ndvi_int, 50),
+         upper_50=ci_50$upper,
+         lower_50=ci_50$lower) %>% 
+  ggplot()+
+  #geom_line(data=l8_ts_plt[l8_ts_plt$plotID==plt,], 
+  #          aes(x=yearmonth, y=normalize(prcp, method='range',c(0.2,0.3))), col='blue')+
+  geom_point(data = l8_ts[l8_ts$plotID==plt,], aes(x = yearmonth(yearmon), y = ndvi), alpha=0.2)+
+  geom_vline(xintercept = plots[plots$plotID==plt,]$plant_date, lty=3, alpha=1)+
+  geom_ribbon(aes(x=yearmonth, ymin=lower_95, ymax=upper_95), alpha=0.1, fill='blue')+
+  geom_ribbon(aes(x=yearmonth, ymin=lower_80, ymax=upper_80), alpha=0.2, fill='blue')+
+  #geom_ribbon(aes(x=yearmonth, ymin=lower_50, ymax=upper_50), alpha=0.3, fill='blue')+
+  geom_line(aes(x = yearmonth, y = .mean), col='darkblue',lwd=0.9, lty=2)+
+  geom_line(data=l8_ts_plt[l8_ts_plt$plotID==plt,], aes(x=yearmonth, y=ndvi_int), col='black',lwd=0.7)+
+  labs(y='NDVI', x='Time', title=paste('Actual (green) vs predicted (red) vegetation including 95% CI'))
 ```
 
 
