@@ -239,11 +239,41 @@ st_write(val_pnts, dsn='output/plot_data/all_countries/Val_pnts_green.GeoJSON', 
 
 ## Compare time series analysis with validation data
 ```{r}
+val_results <- data.frame(recall=numeric(), precision=numeric(), f1=numeric(), 
+                          consc_months=character(), number_outliers=numeric())
+
+for (i in seq(1,8)){
+  print(i)
+  
+  cm_2 <- confusionMatrix(factor(if_else(val_pnts$sgnf_outlier_2 > i-1, 1, 0)), 
+                          factor(val_pnts$regreened), positive='1', mode='everything')
+  cm_3 <- confusionMatrix(factor(if_else(val_pnts$sgnf_outlier_3 > i-1, 1, 0)), 
+                          factor(val_pnts$regreened), positive='1', mode='everything')
+  
+  df_row_2 <- data.frame(recall=cm_2$byClass[5], precision=cm_2$byClass[6], f1=cm_2$byClass[7], 
+                         consc_monts='2 consecutive months', number_outliers = i)
+  
+  df_row_3 <- data.frame(recall=cm_3$byClass[5], precision=cm_3$byClass[6], f1=cm_3$byClass[7], 
+                         consc_monts='3 consecutive months', number_outliers = i)
+  
+  val_results <- rbind(val_results, rbind(df_row_2, df_row_3))
+}
+
+ggplot(val_results)+
+  geom_line(aes(x = number_outliers, y=recall, col=consc_monts), alpha=0.5, lty=2)+
+  geom_line(aes(x = number_outliers, y=precision, col=consc_monts), alpha=0.5, lty=3)+
+  geom_line(aes(x = number_outliers, y = f1, col=consc_monts))
+
 confusionMatrix(factor(val_pnts$regreening_3[val_pnts$country=='Ethiopia']), 
                 factor(val_pnts$regreened[val_pnts$country=='Ethiopia']), positive='1')
 
-confusionMatrix(factor(val_pnts$regreening_2), 
+cm <- confusionMatrix(factor(val_pnts$regreening_2), 
                 factor(val_pnts$regreened), positive='1', mode='everything')
+
+cm$byClass[5]
+
+confusionMatrix(factor(t$regreening_2_2), 
+                factor(t$regreened), positive='1', mode='everything')
 ```
 
 
